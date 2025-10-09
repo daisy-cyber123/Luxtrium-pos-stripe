@@ -1,0 +1,86 @@
+{\rtf1\ansi\ansicpg1252\cocoartf2865
+\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\froman\fcharset0 Times-Roman;}
+{\colortbl;\red255\green255\blue255;\red0\green0\blue0;}
+{\*\expandedcolortbl;;\cssrgb\c0\c0\c0;}
+\margl1440\margr1440\vieww11520\viewh8400\viewkind0
+\deftab720
+\pard\pardeftab720\partightenfactor0
+
+\f0\fs24 \cf0 \expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec2 <!DOCTYPE html>\
+\
+<meta charset="UTF-8">\
+<meta name="viewport" content="width=device-width, initial-scale=1.0">\
+<title>Event POS</title>\
+<style>\
+body \{ font-family: system-ui, Arial; background:#fafafa; padding: 20px; max-width:700px; margin:auto; \}\
+h1 \{ text-align:center; \}\
+.grid \{ display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:12px; \}\
+.item \{ background:white; border-radius:8px; padding:12px; text-align:center; box-shadow:0 1px 4px rgba(0,0,0,0.1); \}\
+.item button \{ margin-top:8px; background:#0b74de; color:white; border:none; padding:8px 10px; border-radius:6px; \}\
+#cart \{ margin-top:20px; background:white; padding:12px; border-radius:8px; box-shadow:0 1px 4px rgba(0,0,0,0.1); \}\
+.tip button \{ margin:4px; padding:6px 10px; border:none; border-radius:4px; \}\
+.charge \{ margin-top:10px; background:#0abf53; color:white; border:none; padding:10px 20px; border-radius:6px; font-weight:bold; width:100%; \}\
+#log \{ margin-top:12px; font-size:13px; color:#333; background:#f6f6f6; padding:8px; border-radius:6px; height:120px; overflow:auto; white-space:pre-wrap; \}\
+</style>\
+</head>\
+<body>\
+<h1>Event POS</h1>\
+<div class="grid" id="products"></div>\
+<div id="cart"></div>\
+<div id="tip" class="tip"></div>\
+<button id="charge" class="charge">Charge</button>\
+<div id="log"></div>\
+\
+<script>\
+const products = [\
+\{ name: 'Beer', price: 600 \},\
+\{ name: 'Wine', price: 800 \},\
+\{ name: 'Soda', price: 300 \},\
+\{ name: 'Water', price: 200 \}\
+];\
+const tips = [0, 0.15, 0.2];\
+let cart = [];\
+let tipRate = 0;\
+\
+const log = msg => \{\
+const el = document.getElementById('log');\
+el.textContent = `[$\{new Date().toLocaleTimeString()\}] $\{msg\}\\n` + el.textContent;\
+\};\
+\
+function renderProducts()\{\
+const grid = document.getElementById('products');\
+grid.innerHTML = products.map((p,i)=>`<div class='item'><strong>$\{p.name\}</strong><br>$$\{(p.price/100).toFixed(2)\}<br><button onclick='addToCart($\{i\})'>Add</button></div>`).join('');\
+\}\
+function addToCart(i)\{ cart.push(products[i]); renderCart(); \}\
+function renderCart()\{\
+const cartEl = document.getElementById('cart');\
+if(!cart.length)\{ cartEl.textContent='Cart Empty'; return; \}\
+let total = cart.reduce((s,i)=>s+i.price,0);\
+let tip = Math.round(total*tipRate);\
+cartEl.innerHTML = cart.map(i=>`$\{i.name\} - $$\{(i.price/100).toFixed(2)\}`).join('<br>') + `<br><strong>Total: $$\{((total+tip)/100).toFixed(2)\}</strong>`;\
+\}\
+function renderTips()\{\
+const t = document.getElementById('tip');\
+t.innerHTML = 'Tip: ' + tips.map(v=>`<button onclick='setTip($\{v\})'>$\{v*100\}%</button>`).join('');\
+\}\
+function setTip(v)\{ tipRate=v; renderCart(); \}\
+\
+async function charge()\{\
+let total = cart.reduce((s,i)=>s+i.price,0);\
+if(!total) return alert('Cart empty');\
+let tip = Math.round(total*tipRate);\
+let amount = total + tip;\
+log(`Creating payment for $$\{(amount/100).toFixed(2)\}`);\
+const pi = await fetch('/create-payment-intent', \{method:'POST', headers:\{'Content-Type':'application/json'\}, body:JSON.stringify(\{amount\})\}).then(r=>r.json());\
+const proc = await fetch('/process-on-reader', \{method:'POST', headers:\{'Content-Type':'application/json'\}, body:JSON.stringify(\{payment_intent:pi.payment_intent\})\}).then(r=>r.json());\
+if(proc.success)\{ log('Payment succeeded \uc0\u9989 '); cart=[]; renderCart(); \}\
+else log('Error: '+proc.error);\
+\}\
+\
+document.getElementById('charge').onclick = charge;\
+renderProducts(); renderTips(); renderCart();\
+</script>\
+</body>\
+</html>\
+}
