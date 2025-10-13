@@ -1,0 +1,15 @@
+{
+"name": "event-pos-stripe",
+"version": "1.0.0",
+"description": "Simple event POS for Stripe WisePOS E (cloud-hosted)",
+"main": "server.js",
+"scripts": {
+"start": "node server.js"
+},
+"dependencies": {
+"express": "^4.18.2",
+"stripe": "^12.10.0",
+"body-parser": "^1.20.2",
+"dotenv": "^16.3.1"
+}
+}
