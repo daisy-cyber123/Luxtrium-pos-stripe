@@ -5,7 +5,6 @@ require('dotenv').config();
 const express = require('express');
 const bodyParser = require('body-parser');
 const Stripe = require('stripe');
-const path = require('path');
 
 // Initialize Express and Stripe
 const app = express();
@@ -16,7 +15,6 @@ const PORT = process.env.PORT || 4242;
 const READER_ID = process.env.READER_ID;
 
 // Middleware
-app.use(express.static(path.join(__dirname, 'public')));
 app.use(bodyParser.json());
 app.use('/webhook', bodyParser.raw({ type: 'application/json' }));
 
@@ -39,6 +37,7 @@ app.post('/create-payment-intent', async (req, res) => {
 
     res.json({ payment_intent: paymentIntent.id });
   } catch (e) {
+    console.error('Error creating payment intent:', e.message);
     res.status(500).json({ error: e.message });
   }
 });
@@ -67,6 +66,7 @@ app.post('/process-on-reader', async (req, res) => {
     const result = await poll();
     res.json({ success: true, payment_intent: result });
   } catch (e) {
+    console.error('Error processing payment on reader:', e.message);
     res.status(500).json({ error: e.message });
   }
 });
@@ -82,32 +82,34 @@ app.post('/webhook', async (req, res) => {
   try {
     event = stripe.webhooks.constructEvent(req.body, sig, secret);
   } catch (err) {
-    console.error('Webhook verification failed', err.message);
+    console.error('Webhook verification failed:', err.message);
     return res.status(400).send(`Webhook Error: ${err.message}`);
   }
 
   switch (event.type) {
     case 'payment_intent.succeeded':
-      console.log('✅ Payment succeeded', event.data.object.id);
+      console.log('✅ Payment succeeded:', event.data.object.id);
       break;
     case 'payment_intent.payment_failed':
-      console.log('❌ Payment failed', event.data.object.id);
+      console.log('❌ Payment failed:', event.data.object.id);
       break;
     default:
-      console.log('Unhandled event', event.type);
+      console.log('Unhandled event type:', event.type);
   }
 
   res.json({ received: true });
 });
 
 // --------------------
-// Serve the frontend
+// Health Check Endpoint
 // --------------------
-app.get('/', (_, res) =>
-  res.sendFile(path.join(__dirname, 'public', 'index.html'))
-);
+app.get('/', (_, res) => {
+  res.status(200).send('✅ Luxtrium POS Server is running');
+});
 
-// Start server
-app.listen(PORT, () =>
-  console.log(`✅ POS server running on port ${PORT}`)
-);
+// --------------------
+// Start Server
+// --------------------
+app.listen(PORT, () => {
+  console.log(`✅ POS server running on port ${PORT}`);
+});
