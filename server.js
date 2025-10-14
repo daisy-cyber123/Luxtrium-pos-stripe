@@ -1,79 +1,104 @@
-// --- IMPORTS ---
-const express = require("express");
-const bodyParser = require("body-parser");
-const Stripe = require("stripe");
-const cors = require("cors");
-const path = require("path");
+// Load environment variables
+require('dotenv').config();
 
-// --- INITIAL SETUP ---
+// Import dependencies
+const express = require('express');
+const bodyParser = require('body-parser');
+const Stripe = require('stripe');
+const path = require('path');
+const cors = require('cors');
+
+// Initialize app and Stripe
 const app = express();
 const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
-const READER_ID = process.env.READER_ID;
+
+// Config
 const PORT = process.env.PORT || 4242;
+const READER_ID = process.env.READER_ID;
 
-// --- MIDDLEWARE ---
+// Middleware
 app.use(cors());
-app.use(express.static(path.join(__dirname, "public")));
+app.use(express.static(path.join(__dirname, 'public')));
 app.use(bodyParser.json());
+app.use('/webhook', bodyParser.raw({ type: 'application/json' }));
 
-// --- ROUTES ---
-
-// Health check
-app.get("/", (_, res) => {
-  res.sendFile(path.join(__dirname, "public", "index.html"));
+// --------------------
+// Root route
+// --------------------
+app.get('/', (_, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// POS interface
-app.get("/pos.html", (_, res) => {
-  res.sendFile(path.join(__dirname, "public", "pos.html"));
+// --------------------
+// POS page route
+// --------------------
+app.get('/pos', (_, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'pos.html'));
 });
 
-// Create a payment intent
-app.post("/create-payment-intent", async (req, res) => {
+// --------------------
+// Create Payment Intent
+// --------------------
+app.post('/create-payment-intent', async (req, res) => {
   try {
-    const { amount, currency = "usd" } = req.body;
-    if (!amount) return res.status(400).json({ error: "Missing amount" });
+    const { amount, currency = 'usd', metadata = {} } = req.body;
+    if (!amount) return res.status(400).json({ error: 'Missing amount' });
 
     const paymentIntent = await stripe.paymentIntents.create({
       amount,
       currency,
-      payment_method_types: ["card_present"],
-      capture_method: "automatic",
-      description: "Luxtrium POS Sale",
+      payment_method_types: ['card_present'],
+      capture_method: 'automatic',
+      metadata,
+      description: 'Luxtrium POS Sale',
     });
 
-    console.log("✅ Created PaymentIntent:", paymentIntent.id);
     res.json({ payment_intent: paymentIntent.id });
   } catch (err) {
-    console.error("❌ Stripe error creating payment intent:", err.message);
+    console.error('Stripe error creating payment intent:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
 
-// Process payment on reader
-app.post("/process-on-reader", async (req, res) => {
+// --------------------
+// Process Payment on Reader
+// --------------------
+app.post('/process-on-reader', async (req, res) => {
   try {
     const { payment_intent } = req.body;
     if (!payment_intent)
-      return res.status(400).json({ error: "Missing payment_intent" });
+      return res.status(400).json({ error: 'Missing payment_intent' });
 
     await stripe.terminal.readers.processPaymentIntent(READER_ID, {
       payment_intent,
     });
 
-    res.json({ success: true });
+    // Poll until payment completes
+    const poll = async () => {
+      const pi = await stripe.paymentIntents.retrieve(payment_intent);
+      if (pi.status === 'succeeded') return pi;
+      await new Promise((r) => setTimeout(r, 1500));
+      return poll();
+    };
+
+    const result = await poll();
+    res.json({ success: true, payment_intent: result });
   } catch (err) {
-    console.error("❌ Stripe error processing on reader:", err.message);
+    console.error('Error processing payment on reader:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
 
-// Fallback for 404s
-app.use((req, res) => {
-  res.status(404).send("❌ Page not found.");
+// --------------------
+// Webhook (optional)
+// --------------------
+app.post('/webhook', (req, res) => {
+  res.json({ received: true });
 });
 
-// --- START SERVER ---
-app.listen(PORT, () => {
-  console.log(`✅ Luxtrium POS Server running on port ${PORT}`);
-});
+// --------------------
+// Start server
+// --------------------
+app.listen(PORT, () =>
+  console.log(`✅ Luxtrium POS server running on port ${PORT}`)
+);
