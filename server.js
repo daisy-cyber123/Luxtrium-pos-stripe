@@ -5,19 +5,20 @@ require('dotenv').config();
 const express = require('express');
 const bodyParser = require('body-parser');
 const Stripe = require('stripe');
-const path = require('path');
 const cors = require('cors');
+const path = require('path');
 
 // Initialize Express and Stripe
 const app = express();
 const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
-app.use(cors());
 
 // Config
 const PORT = process.env.PORT || 4242;
 const READER_ID = process.env.READER_ID;
 
 // Middleware
+app.use(cors());
+app.use(express.static(path.join(__dirname, 'public')));
 app.use(bodyParser.json());
 app.use('/webhook', bodyParser.raw({ type: 'application/json' }));
 
@@ -40,13 +41,13 @@ app.post('/create-payment-intent', async (req, res) => {
 
     res.json({ payment_intent: paymentIntent.id });
   } catch (e) {
-    console.error('Error creating payment intent:', e.message);
+    console.error('❌ Error creating payment intent:', e.message);
     res.status(500).json({ error: e.message });
   }
 });
 
 // --------------------
-// Process on Reader
+// Process Payment on Reader
 // --------------------
 app.post('/process-on-reader', async (req, res) => {
   try {
@@ -69,13 +70,13 @@ app.post('/process-on-reader', async (req, res) => {
     const result = await poll();
     res.json({ success: true, payment_intent: result });
   } catch (e) {
-    console.error('Error processing payment on reader:', e.message);
+    console.error('❌ Error processing on reader:', e.message);
     res.status(500).json({ error: e.message });
   }
 });
 
 // --------------------
-// Webhook Endpoint
+// Stripe Webhook Endpoint
 // --------------------
 app.post('/webhook', async (req, res) => {
   const sig = req.headers['stripe-signature'];
@@ -97,17 +98,29 @@ app.post('/webhook', async (req, res) => {
       console.log('❌ Payment failed:', event.data.object.id);
       break;
     default:
-      console.log('Unhandled event type:', event.type);
+      console.log('Unhandled event:', event.type);
   }
 
   res.json({ received: true });
 });
 
 // --------------------
-// Health Check Endpoint
+// Serve Frontend Pages
 // --------------------
+
+// Root (landing page)
 app.get('/', (_, res) => {
-  res.status(200).send('✅ Luxtrium POS Server is running');
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// POS Interface page
+app.get('/pos.html', (_, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'pos.html'));
+});
+
+// Catch-all fallback
+app.use((req, res) => {
+  res.status(404).send('❌ Page not found.');
 });
 
 // --------------------
