@@ -1,15 +1,21 @@
 {
-"name": "event-pos-stripe",
-"version": "1.0.0",
-"description": "Simple event POS for Stripe WisePOS E (cloud-hosted)",
-"main": "server.js",
-"scripts": {
-"start": "node server.js"
-},
-"dependencies": {
-"express": "^4.18.2",
-"stripe": "^12.10.0",
-"body-parser": "^1.20.2",
-"dotenv": "^16.3.1"
-}
+  "name": "luxtrium-pos-stripe",
+  "version": "1.0.0",
+  "description": "Luxtrium POS interface for Stripe WisePOS E",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "stripe": "^14.0.0",
+    "body-parser": "^1.20.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.1"
+  },
+  "engines": {
+    "node": ">=20.x"
+  },
+  "author": "Luxtrium / Authenticus Inc",
+  "license": "MIT"
 }
