@@ -5,10 +5,13 @@ require('dotenv').config();
 const express = require('express');
 const bodyParser = require('body-parser');
 const Stripe = require('stripe');
+const path = require('path');
+const cors = require('cors');
 
 // Initialize Express and Stripe
 const app = express();
 const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
+app.use(cors());
 
 // Config
 const PORT = process.env.PORT || 4242;
