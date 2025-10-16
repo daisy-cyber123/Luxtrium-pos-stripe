@@ -3,212 +3,167 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Luxtrium POS 🍸</title>
+  <title>Luxtrium POS</title>
   <style>
     body {
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      background-color: #0e0e0e;
-      color: white;
+      font-family: Arial, sans-serif;
+      background: #f8f8f8;
+      margin: 0;
+      padding: 0;
       text-align: center;
-      padding: 40px;
     }
-
     h1 {
-      color: #f2c94c;
-      font-size: 2.5em;
-      margin-bottom: 10px;
-    }
-
-    h3 {
-      margin-bottom: 20px;
-      color: #ccc;
-    }
-
-    .btn {
-      display: inline-block;
-      border: none;
-      border-radius: 10px;
-      padding: 15px 25px;
-      margin: 8px;
-      font-size: 1.1em;
-      font-weight: bold;
-      cursor: pointer;
-      transition: all 0.2s ease;
-    }
-
-    .btn:hover {
-      opacity: 0.8;
-      transform: scale(1.02);
-    }
-
-    .btn-success {
-      background-color: #00c46a;
-      color: white;
-    }
-
-    .btn-warning {
-      background-color: #ff9f43;
-      color: black;
-    }
-
-    .btn-secondary {
-      background-color: #555;
-      color: white;
-    }
-
-    .btn-drink {
-      background-color: #f2c94c;
-      color: black;
-    }
-
-    #order-box {
-      background: #1c1c1c;
-      border-radius: 12px;
-      display: inline-block;
+      background: black;
+      color: gold;
       padding: 20px;
-      margin-top: 25px;
-      min-width: 300px;
     }
-
-    #status-message {
-      margin-top: 25px;
-      font-size: 1.2em;
-      min-height: 1.5em;
+    .container {
+      margin: 20px auto;
+      width: 90%;
+      max-width: 500px;
+      background: white;
+      padding: 20px;
+      border-radius: 15px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    button {
+      background: black;
+      color: gold;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 16px;
+      margin-top: 10px;
+    }
+    button:hover {
+      opacity: 0.8;
+    }
+    input {
+      padding: 10px;
+      width: 100%;
+      margin: 8px 0;
+      border-radius: 8px;
+      border: 1px solid #ccc;
     }
   </style>
 </head>
 <body>
-  <h1>Luxtrium POS 🍸</h1>
-  <h3>Select drinks to add to order:</h3>
+  <h1>Luxtrium POS</h1>
 
-  <div>
-    <button class="btn btn-drink" onclick="addItem('Red Carpet Cosmo', 1300)">Red Carpet Cosmo – $13</button>
-    <button class="btn btn-drink" onclick="addItem('Hollywood Royale', 1300)">Hollywood Royale – $13</button>
-    <button class="btn btn-drink" onclick="addItem('Whiskey Sour', 1300)">Whiskey Sour – $13</button>
-    <button class="btn btn-drink" onclick="addItem('Brown Derby', 1300)">Brown Derby – $13</button>
-    <button class="btn btn-drink" onclick="addItem('Beer', 500)">Beer – $5</button>
-    <button class="btn btn-drink" onclick="addItem('Bottled Water', 100)">Bottled Water – $1</button>
+  <div class="container">
+    <h2>Bar Menu</h2>
+
+    <div id="items">
+      <button onclick="addItem('Red Carpet Cosmo', 1300)">Red Carpet Cosmo - $13</button><br>
+      <button onclick="addItem('Hollywood Royale', 1300)">Hollywood Royale - $13</button><br>
+      <button onclick="addItem('Whiskey Sour', 1300)">Whiskey Sour - $13</button><br>
+      <button onclick="addItem('Brown Derby', 1300)">Brown Derby - $13</button><br>
+      <button onclick="addItem('Bottled Water', 100)">Bottled Water - $1</button><br>
+    </div>
+
+    <h3>Current Order</h3>
+    <ul id="order"></ul>
+    <h3>Total: $<span id="total">0.00</span></h3>
+
+    <label for="email">Customer Email (for receipt):</label>
+    <input type="email" id="email" placeholder="example@email.com" />
+
+    <button onclick="chargeCustomer()">Charge Customer</button>
+    <button onclick="cancelPayment()">Cancel Payment</button>
+    <button onclick="clearOrder()">Clear Order</button>
+
+    <p id="message"></p>
   </div>
-
-  <div id="order-box">
-    <h2>Current Order</h2>
-    <ul id="order-list"></ul>
-    <p><strong>Total:</strong> $<span id="order-total">0.00</span></p>
-  </div>
-
-  <div style="margin-top: 25px;">
-    <button id="charge-button" class="btn btn-success">💳 Charge Customer</button>
-    <button id="cancel-button" class="btn btn-warning">✖️ Cancel Payment</button>
-    <button id="clear-button" class="btn btn-secondary">Clear Order</button>
-  </div>
-
-  <p id="status-message"></p>
 
   <script>
-    let order = [];
     let total = 0;
-    window.currentPaymentIntent = null;
+    let order = [];
+    let currentPaymentIntent = null;
 
-    const orderList = document.getElementById('order-list');
-    const orderTotal = document.getElementById('order-total');
-    const statusMessage = document.getElementById('status-message');
-
-    // Add item
     function addItem(name, price) {
       order.push({ name, price });
       total += price;
       renderOrder();
     }
 
-    // Render order
     function renderOrder() {
-      orderList.innerHTML = order
-        .map(item => `<li>${item.name} – $${(item.price / 100).toFixed(2)}</li>`)
-        .join('');
-      orderTotal.textContent = (total / 100).toFixed(2);
+      const orderList = document.getElementById("order");
+      orderList.innerHTML = "";
+      order.forEach((item) => {
+        const li = document.createElement("li");
+        li.textContent = `${item.name} - $${(item.price / 100).toFixed(2)}`;
+        orderList.appendChild(li);
+      });
+      document.getElementById("total").textContent = (total / 100).toFixed(2);
     }
 
-    // Clear order
-    document.getElementById('clear-button').addEventListener('click', () => {
-      order = [];
-      total = 0;
-      renderOrder();
-      statusMessage.textContent = '';
-      window.currentPaymentIntent = null;
-    });
+    async function chargeCustomer() {
+      if (total <= 0) return alert("Add at least one item.");
 
-    // Charge customer
-    document.getElementById('charge-button').addEventListener('click', async () => {
-      if (total <= 0) {
-        statusMessage.textContent = '⚠️ Add an item before charging.';
-        return;
-      }
-
-      statusMessage.textContent = '⏳ Creating payment...';
+      const email = document.getElementById("email").value;
 
       try {
-        // Create PaymentIntent
-        const response = await fetch('/create-payment-intent', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ amount: total }),
+        const response = await fetch("/create-payment-intent", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ amount: total, receipt_email: email }),
         });
-
         const data = await response.json();
+
         if (data.error) throw new Error(data.error);
 
-        window.currentPaymentIntent = data.payment_intent;
-        statusMessage.textContent = '💳 Waiting for reader...';
+        currentPaymentIntent = data.payment_intent;
 
-        // Process payment
-        const process = await fetch('/process-on-reader', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ payment_intent: data.payment_intent }),
+        const processResponse = await fetch("/process-on-reader", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ payment_intent: currentPaymentIntent }),
         });
 
-        const result = await process.json();
-        if (result.error) throw new Error(result.error);
+        const result = await processResponse.json();
 
-        statusMessage.textContent = '✅ Payment successful!';
-        order = [];
-        total = 0;
-        renderOrder();
-        window.currentPaymentIntent = null;
-      } catch (err) {
-        console.error(err);
-        statusMessage.textContent = `❌ Error: ${err.message}`;
-      }
-    });
-
-    // Cancel payment
-    document.getElementById('cancel-button').addEventListener('click', async () => {
-      statusMessage.textContent = '🚫 Canceling payment...';
-
-      if (!window.currentPaymentIntent) {
-        statusMessage.textContent = 'ℹ️ No active payment to cancel.';
-        return;
-      }
-
-      try {
-        const response = await fetch('/cancel-payment', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ payment_intent: window.currentPaymentIntent }),
-        });
-
-        const data = await response.json();
-        if (data.success) {
-          statusMessage.textContent = '✅ Payment canceled.';
-          window.currentPaymentIntent = null;
+        if (result.success) {
+          document.getElementById("message").textContent =
+            "✅ Payment successful!";
+          clearOrder();
         } else {
-          statusMessage.textContent = `❌ Error: ${data.error || 'Unable to cancel payment.'}`;
+          document.getElementById("message").textContent =
+            "❌ Payment failed.";
         }
       } catch (err) {
-        console.error(err);
-        statusMessage.textContent = '❌ Error canceling payment.';
+        document.getElementById("message").textContent =
+          "Error: " + err.message;
       }
-    });
+    }
+
+    async function cancelPayment() {
+      if (!currentPaymentIntent) return alert("No payment in progress.");
+      try {
+        const response = await fetch("/cancel-payment", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ payment_intent: currentPaymentIntent }),
+        });
+        const result = await response.json();
+        if (result.success) {
+          document.getElementById("message").textContent =
+            "⚠️ Payment canceled.";
+        }
+      } catch (err) {
+        document.getElementById("message").textContent =
+          "Cancel error: " + err.message;
+      }
+    }
+
+    function clearOrder() {
+      order = [];
+      total = 0;
+      currentPaymentIntent = null;
+      renderOrder();
+      document.getElementById("email").value = "";
+      document.getElementById("message").textContent = "";
+    }
   </script>
 </body>
 </html>
