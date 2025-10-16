@@ -47,7 +47,7 @@ app.get('/pos', (_, res) => {
 });
 
 // --------------------
-// Create Payment Intent (with tipping support)
+// Create Payment Intent
 // --------------------
 app.post('/create-payment-intent', async (req, res) => {
   try {
@@ -64,11 +64,6 @@ app.post('/create-payment-intent', async (req, res) => {
       capture_method: 'automatic',
       description: 'Luxtrium POS Sale',
       metadata,
-
-      // 💡 Add Tipping Configuration
-      tip: {
-        amount_eligible: amount, // base amount eligible for tipping
-      },
     });
 
     res.json({ payment_intent: paymentIntent.id });
