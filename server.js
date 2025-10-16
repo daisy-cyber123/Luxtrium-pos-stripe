@@ -47,16 +47,17 @@ app.get('/pos', (_, res) => {
 });
 
 // --------------------
-// Create Payment Intent
+// Create Payment Intent (adds receipt email/sms support)
 // --------------------
 app.post('/create-payment-intent', async (req, res) => {
   try {
-    const { amount, currency = 'usd', metadata = {} } = req.body;
+    const { amount, currency = 'usd', metadata = {}, receipt_email, receipt_sms } = req.body;
 
     if (!amount) {
       return res.status(400).json({ error: 'Missing amount' });
     }
 
+    // Create PaymentIntent
     const paymentIntent = await stripe.paymentIntents.create({
       amount,
       currency,
@@ -64,6 +65,8 @@ app.post('/create-payment-intent', async (req, res) => {
       capture_method: 'automatic',
       description: 'Luxtrium POS Sale',
       metadata,
+      receipt_email, // optional email for receipt
+      receipt_sms,   // optional SMS for receipt (Stripe auto-detects phone)
     });
 
     res.json({ payment_intent: paymentIntent.id });
@@ -82,8 +85,10 @@ app.post('/process-on-reader', async (req, res) => {
     if (!payment_intent)
       return res.status(400).json({ error: 'Missing payment_intent' });
 
+    // Let customer enter receipt email/SMS on the reader itself
     await stripe.terminal.readers.processPaymentIntent(READER_ID, {
       payment_intent,
+      customer_consent_collected: true,
     });
 
     // Poll until payment completes
