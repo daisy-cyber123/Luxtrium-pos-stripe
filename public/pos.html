@@ -2,115 +2,213 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Luxtrium POS Control</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Luxtrium POS 🍸</title>
   <style>
-    body { font-family: Arial, sans-serif; background:#111; color:#fff; text-align:center; padding:40px; }
-    h1 { color:#f5c542; margin-bottom:10px; }
-    .menu { display:flex; justify-content:center; flex-wrap:wrap; gap:15px; margin-bottom:30px; }
-    .drink { background:#f5c542; color:#111; border:none; border-radius:10px; padding:15px 25px; font-size:18px; cursor:pointer; transition:0.2s; }
-    .drink:hover { transform:scale(1.05); }
-    #order { max-width:400px; margin:0 auto; background:#222; border-radius:12px; padding:15px; text-align:left; }
-    #order h2 { text-align:center; color:#f5c542; }
-    #status { margin-top:25px; font-size:18px; }
-    #charge { margin-top:25px; background:#28a745; color:#fff; border:none; border-radius:10px; padding:15px 25px; font-size:20px; cursor:pointer; transition:0.2s; }
-    #charge:hover { background:#34c759; }
-    #clear { background:#444; color:#fff; border:none; border-radius:10px; padding:10px 20px; margin-top:10px; cursor:pointer; }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #0e0e0e;
+      color: white;
+      text-align: center;
+      padding: 40px;
+    }
+
+    h1 {
+      color: #f2c94c;
+      font-size: 2.5em;
+      margin-bottom: 10px;
+    }
+
+    h3 {
+      margin-bottom: 20px;
+      color: #ccc;
+    }
+
+    .btn {
+      display: inline-block;
+      border: none;
+      border-radius: 10px;
+      padding: 15px 25px;
+      margin: 8px;
+      font-size: 1.1em;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .btn:hover {
+      opacity: 0.8;
+      transform: scale(1.02);
+    }
+
+    .btn-success {
+      background-color: #00c46a;
+      color: white;
+    }
+
+    .btn-warning {
+      background-color: #ff9f43;
+      color: black;
+    }
+
+    .btn-secondary {
+      background-color: #555;
+      color: white;
+    }
+
+    .btn-drink {
+      background-color: #f2c94c;
+      color: black;
+    }
+
+    #order-box {
+      background: #1c1c1c;
+      border-radius: 12px;
+      display: inline-block;
+      padding: 20px;
+      margin-top: 25px;
+      min-width: 300px;
+    }
+
+    #status-message {
+      margin-top: 25px;
+      font-size: 1.2em;
+      min-height: 1.5em;
+    }
   </style>
 </head>
 <body>
   <h1>Luxtrium POS 🍸</h1>
-  <p>Select drinks to add to order:</p>
+  <h3>Select drinks to add to order:</h3>
 
-  <div class="menu">
-    <button class="drink" onclick="addItem('Red Carpet Cosmo', 1300)">Red Carpet Cosmo – $13</button>
-    <button class="drink" onclick="addItem('Hollywood Royale', 1300)">Hollywood Royale – $13</button>
-    <button class="drink" onclick="addItem('Whiskey Sour', 1300)">Whiskey Sour – $13</button>
-    <button class="drink" onclick="addItem('Brown Derby', 1300)">Brown Derby – $13</button>
-    <button class="drink" onclick="addItem('Bottled Water', 100)">Bottled Water – $1</button>
+  <div>
+    <button class="btn btn-drink" onclick="addItem('Red Carpet Cosmo', 1300)">Red Carpet Cosmo – $13</button>
+    <button class="btn btn-drink" onclick="addItem('Hollywood Royale', 1300)">Hollywood Royale – $13</button>
+    <button class="btn btn-drink" onclick="addItem('Whiskey Sour', 1300)">Whiskey Sour – $13</button>
+    <button class="btn btn-drink" onclick="addItem('Brown Derby', 1300)">Brown Derby – $13</button>
+    <button class="btn btn-drink" onclick="addItem('Beer', 500)">Beer – $5</button>
+    <button class="btn btn-drink" onclick="addItem('Bottled Water', 100)">Bottled Water – $1</button>
   </div>
 
-  <div id="order">
+  <div id="order-box">
     <h2>Current Order</h2>
-    <ul id="orderList"></ul>
-    <p><strong>Total: $<span id="total">0.00</span></strong></p>
+    <ul id="order-list"></ul>
+    <p><strong>Total:</strong> $<span id="order-total">0.00</span></p>
   </div>
 
-  <button id="charge" onclick="charge()">💳 Charge Customer</button>
-  <button id="clear" onclick="clearOrder()">Clear Order</button>
-  <div id="status"></div>
+  <div style="margin-top: 25px;">
+    <button id="charge-button" class="btn btn-success">💳 Charge Customer</button>
+    <button id="cancel-button" class="btn btn-warning">✖️ Cancel Payment</button>
+    <button id="clear-button" class="btn btn-secondary">Clear Order</button>
+  </div>
+
+  <p id="status-message"></p>
 
   <script>
-    const BASE_URL = "https://luxtrium-pos-stripe.onrender.com";
     let order = [];
+    let total = 0;
+    window.currentPaymentIntent = null;
 
+    const orderList = document.getElementById('order-list');
+    const orderTotal = document.getElementById('order-total');
+    const statusMessage = document.getElementById('status-message');
+
+    // Add item
     function addItem(name, price) {
-      const existing = order.find(i => i.name === name);
-      if (existing) existing.qty++;
-      else order.push({ name, price, qty: 1 });
-      updateOrder();
+      order.push({ name, price });
+      total += price;
+      renderOrder();
     }
 
-    function clearOrder() {
+    // Render order
+    function renderOrder() {
+      orderList.innerHTML = order
+        .map(item => `<li>${item.name} – $${(item.price / 100).toFixed(2)}</li>`)
+        .join('');
+      orderTotal.textContent = (total / 100).toFixed(2);
+    }
+
+    // Clear order
+    document.getElementById('clear-button').addEventListener('click', () => {
       order = [];
-      updateOrder();
-      document.getElementById("status").innerHTML = "";
-    }
+      total = 0;
+      renderOrder();
+      statusMessage.textContent = '';
+      window.currentPaymentIntent = null;
+    });
 
-    function updateOrder() {
-      const list = document.getElementById("orderList");
-      const totalDisplay = document.getElementById("total");
-      list.innerHTML = "";
-      let total = 0;
-      order.forEach(item => {
-        const li = document.createElement("li");
-        li.textContent = `${item.name} x${item.qty} – $${(item.price * item.qty / 100).toFixed(2)}`;
-        list.appendChild(li);
-        total += item.price * item.qty;
-      });
-      totalDisplay.textContent = (total / 100).toFixed(2);
-    }
-
-    async function charge() {
-      const status = document.getElementById("status");
-      let total = order.reduce((sum, i) => sum + i.price * i.qty, 0);
-      if (total === 0) {
-        status.innerHTML = "❌ Add at least one item.";
+    // Charge customer
+    document.getElementById('charge-button').addEventListener('click', async () => {
+      if (total <= 0) {
+        statusMessage.textContent = '⚠️ Add an item before charging.';
         return;
       }
 
-      status.innerHTML = `Creating payment for $${(total / 100).toFixed(2)}...`;
+      statusMessage.textContent = '⏳ Creating payment...';
+
       try {
-        const intentRes = await fetch(`${BASE_URL}/create-payment-intent`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            amount: total,
-            currency: "usd",
-            metadata: { items: JSON.stringify(order) }
-          })
+        // Create PaymentIntent
+        const response = await fetch('/create-payment-intent', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ amount: total }),
         });
-        const data = await intentRes.json();
-        if (!data.payment_intent) throw new Error("Failed to create payment intent");
 
-        status.innerHTML = "Processing payment on reader...";
-        const processRes = await fetch(`${BASE_URL}/process-on-reader`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ payment_intent: data.payment_intent })
+        const data = await response.json();
+        if (data.error) throw new Error(data.error);
+
+        window.currentPaymentIntent = data.payment_intent;
+        statusMessage.textContent = '💳 Waiting for reader...';
+
+        // Process payment
+        const process = await fetch('/process-on-reader', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ payment_intent: data.payment_intent }),
         });
-        const result = await processRes.json();
 
-        if (result.success) {
-          status.innerHTML = `✅ Payment of $${(total / 100).toFixed(2)} succeeded!`;
-          clearOrder();
+        const result = await process.json();
+        if (result.error) throw new Error(result.error);
+
+        statusMessage.textContent = '✅ Payment successful!';
+        order = [];
+        total = 0;
+        renderOrder();
+        window.currentPaymentIntent = null;
+      } catch (err) {
+        console.error(err);
+        statusMessage.textContent = `❌ Error: ${err.message}`;
+      }
+    });
+
+    // Cancel payment
+    document.getElementById('cancel-button').addEventListener('click', async () => {
+      statusMessage.textContent = '🚫 Canceling payment...';
+
+      if (!window.currentPaymentIntent) {
+        statusMessage.textContent = 'ℹ️ No active payment to cancel.';
+        return;
+      }
+
+      try {
+        const response = await fetch('/cancel-payment', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ payment_intent: window.currentPaymentIntent }),
+        });
+
+        const data = await response.json();
+        if (data.success) {
+          statusMessage.textContent = '✅ Payment canceled.';
+          window.currentPaymentIntent = null;
         } else {
-          throw new Error(result.error || "Payment failed");
+          statusMessage.textContent = `❌ Error: ${data.error || 'Unable to cancel payment.'}`;
         }
       } catch (err) {
-        status.innerHTML = `❌ Error: ${err.message}`;
+        console.error(err);
+        statusMessage.textContent = '❌ Error canceling payment.';
       }
-    }
+    });
   </script>
 </body>
 </html>
