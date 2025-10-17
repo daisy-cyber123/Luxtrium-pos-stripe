@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Luxtrium POS with Tabs</title>
+  <title>Luxtrium POS (Tabs Optional)</title>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -37,18 +37,12 @@
       margin: 5px;
     }
     button:hover { opacity: 0.8; }
-    input {
+    input, select {
       padding: 10px;
       width: 100%;
       margin: 8px 0;
       border-radius: 8px;
       border: 1px solid #ccc;
-    }
-    select {
-      padding: 8px;
-      border-radius: 8px;
-      width: 100%;
-      margin: 8px 0;
     }
     #message {
       margin-top: 10px;
@@ -65,9 +59,9 @@
   <h1>Luxtrium POS 🍸</h1>
 
   <div class="container">
-    <h2>Tabs</h2>
+    <h2>Tabs (Optional)</h2>
     <select id="tabSelect" onchange="switchTab()">
-      <option value="">-- Select or Create a Tab --</option>
+      <option value="">-- No Tab (One-Off Sale) --</option>
     </select>
     <button onclick="newTab()">➕ New Tab</button>
     <button onclick="closeTab()">💳 Close Tab</button>
@@ -86,7 +80,7 @@
       <button onclick="addItem('Bottled Water', 100)">Bottled Water - $1</button><br>
     </div>
 
-    <h3>Current Order (<span id="activeTabName">No Tab Selected</span>)</h3>
+    <h3>Current Order (<span id="activeTabName">One-Off Sale</span>)</h3>
     <ul id="order"></ul>
     <h3>Total: $<span id="total">0.00</span></h3>
 
@@ -95,6 +89,7 @@
 
     <button onclick="chargeCustomer()">Charge Customer</button>
     <button onclick="cancelPayment()">Cancel Payment</button>
+    <button onclick="clearOrder()">Clear Order</button>
 
     <p id="message"></p>
   </div>
@@ -104,6 +99,8 @@
     let tabs = {};  // { tabName: { order: [], total: 0 } }
     let currentTab = null;
     let currentPaymentIntent = null;
+    let oneOffOrder = [];
+    let oneOffTotal = 0;
 
     // Create a new tab
     function newTab() {
@@ -116,7 +113,7 @@
       switchTab();
     }
 
-    // Switch to selected tab
+    // Switch tab
     function switchTab() {
       const selected = document.getElementById("tabSelect").value;
       currentTab = selected || null;
@@ -133,50 +130,58 @@
       renderOrder();
     }
 
-    // Close (charge) tab
+    // Close tab (charge)
     async function closeTab() {
       if (!currentTab) return alert("Select a tab first.");
       if (tabs[currentTab].total <= 0) return alert("Tab is empty.");
-
       const confirmClose = confirm(`Charge ${currentTab}'s tab of $${(tabs[currentTab].total / 100).toFixed(2)}?`);
       if (!confirmClose) return;
-
       await chargeCustomer(true);
     }
 
-    // Add drink to tab
+    // Add drink to tab or one-off
     function addItem(name, price) {
-      if (!currentTab) return alert("Please select or create a tab first.");
-      tabs[currentTab].order.push({ name, price });
-      tabs[currentTab].total += price;
+      if (currentTab) {
+        tabs[currentTab].order.push({ name, price });
+        tabs[currentTab].total += price;
+      } else {
+        oneOffOrder.push({ name, price });
+        oneOffTotal += price;
+      }
       renderOrder();
     }
 
-    // Display order for current tab
+    // Render order display
     function renderOrder() {
       const orderList = document.getElementById("order");
       orderList.innerHTML = "";
       const totalEl = document.getElementById("total");
       const nameEl = document.getElementById("activeTabName");
 
-      if (!currentTab || !tabs[currentTab]) {
-        nameEl.textContent = "No Tab Selected";
-        totalEl.textContent = "0.00";
-        return;
+      let items = [];
+      let total = 0;
+
+      if (currentTab && tabs[currentTab]) {
+        nameEl.textContent = currentTab;
+        items = tabs[currentTab].order;
+        total = tabs[currentTab].total;
+      } else {
+        nameEl.textContent = "One-Off Sale";
+        items = oneOffOrder;
+        total = oneOffTotal;
       }
 
-      nameEl.textContent = currentTab;
-      tabs[currentTab].order.forEach(item => {
+      items.forEach(item => {
         const li = document.createElement("li");
         li.textContent = `${item.name} - $${(item.price / 100).toFixed(2)}`;
         orderList.appendChild(li);
       });
-      totalEl.textContent = (tabs[currentTab].total / 100).toFixed(2);
+      totalEl.textContent = (total / 100).toFixed(2);
     }
 
     function updateTabSelect() {
       const select = document.getElementById("tabSelect");
-      select.innerHTML = '<option value="">-- Select or Create a Tab --</option>';
+      select.innerHTML = '<option value="">-- No Tab (One-Off Sale) --</option>';
       Object.keys(tabs).forEach(tab => {
         const option = document.createElement("option");
         option.value = tab;
@@ -187,9 +192,18 @@
 
     // Charge customer
     async function chargeCustomer(fromClose = false) {
-      if (!currentTab) return alert("No tab selected.");
-      const tab = tabs[currentTab];
-      if (tab.total <= 0) return alert("No items in tab.");
+      let total = 0;
+      let orderItems = [];
+
+      if (currentTab && tabs[currentTab]) {
+        total = tabs[currentTab].total;
+        orderItems = tabs[currentTab].order;
+      } else {
+        total = oneOffTotal;
+        orderItems = oneOffOrder;
+      }
+
+      if (total <= 0) return alert("No items to charge.");
 
       const email = document.getElementById("email").value.trim();
       document.getElementById("message").textContent = "Processing payment...";
@@ -198,7 +212,7 @@
         const res = await fetch(`${BASE_URL}/create-payment-intent`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ amount: tab.total, receipt_email: email })
+          body: JSON.stringify({ amount: total, receipt_email: email })
         });
         const data = await res.json();
         if (data.error) throw new Error(data.error);
@@ -213,8 +227,13 @@
         const result = await processRes.json();
         if (result.success) {
           document.getElementById("message").textContent = "✅ Payment successful!";
-          delete tabs[currentTab];
-          currentTab = null;
+          if (currentTab && tabs[currentTab]) {
+            delete tabs[currentTab];
+            currentTab = null;
+          } else {
+            oneOffOrder = [];
+            oneOffTotal = 0;
+          }
           updateTabSelect();
           renderOrder();
         } else {
@@ -225,7 +244,7 @@
       }
     }
 
-    // Cancel current payment
+    // Cancel payment
     async function cancelPayment() {
       if (!currentPaymentIntent) return alert("No payment in progress.");
       try {
@@ -241,6 +260,20 @@
       } catch (err) {
         document.getElementById("message").textContent = "Cancel error: " + err.message;
       }
+    }
+
+    // Clear current order (tab or one-off)
+    function clearOrder() {
+      if (currentTab && tabs[currentTab]) {
+        tabs[currentTab].order = [];
+        tabs[currentTab].total = 0;
+      } else {
+        oneOffOrder = [];
+        oneOffTotal = 0;
+      }
+      renderOrder();
+      document.getElementById("email").value = "";
+      document.getElementById("message").textContent = "";
     }
   </script>
 </body>
