@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Luxtrium POS</title>
+  <title>Luxtrium POS with Tabs</title>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -20,7 +20,7 @@
     .container {
       margin: 20px auto;
       width: 90%;
-      max-width: 500px;
+      max-width: 550px;
       background: white;
       padding: 20px;
       border-radius: 15px;
@@ -30,15 +30,13 @@
       background: black;
       color: gold;
       border: none;
-      padding: 10px 20px;
+      padding: 10px 15px;
       border-radius: 8px;
       cursor: pointer;
       font-size: 16px;
-      margin-top: 10px;
+      margin: 5px;
     }
-    button:hover {
-      opacity: 0.8;
-    }
+    button:hover { opacity: 0.8; }
     input {
       padding: 10px;
       width: 100%;
@@ -46,140 +44,202 @@
       border-radius: 8px;
       border: 1px solid #ccc;
     }
+    select {
+      padding: 8px;
+      border-radius: 8px;
+      width: 100%;
+      margin: 8px 0;
+    }
     #message {
       margin-top: 10px;
       font-weight: bold;
     }
+    ul {
+      text-align: left;
+      list-style: none;
+      padding: 0;
+    }
   </style>
 </head>
 <body>
-  <h1>Luxtrium POS</h1>
+  <h1>Luxtrium POS 🍸</h1>
 
   <div class="container">
-    <h2>Bar Menu</h2>
+    <h2>Tabs</h2>
+    <select id="tabSelect" onchange="switchTab()">
+      <option value="">-- Select or Create a Tab --</option>
+    </select>
+    <button onclick="newTab()">➕ New Tab</button>
+    <button onclick="closeTab()">💳 Close Tab</button>
+    <button onclick="deleteTab()">🗑️ Delete Tab</button>
 
+    <hr>
+
+    <h2>Bar Menu</h2>
     <div id="items">
-      <button onclick="addItem('Red Carpet Cosmo', 1300)">Red Carpet Cosmo – $13</button><br>
-      <button onclick="addItem('Hollywood Royale', 1300)">Hollywood Royale – $13</button><br>
-      <button onclick="addItem('Whiskey Sour', 1300)">Whiskey Sour – $13</button><br>
-      <button onclick="addItem('Brown Derby', 1300)">Brown Derby – $13</button><br>
-      <button onclick="addItem('Beer', 500)">Beer – $5</button><br>
-      <button onclick="addItem('Bottled Water', 100)">Bottled Water – $1</button><br>
+      <button onclick="addItem('Red Carpet Cosmo', 1300)">Red Carpet Cosmo - $13</button><br>
+      <button onclick="addItem('Hollywood Royale', 1300)">Hollywood Royale - $13</button><br>
+      <button onclick="addItem('Whiskey Sour', 1300)">Whiskey Sour - $13</button><br>
+      <button onclick="addItem('Brown Derby', 1300)">Brown Derby - $13</button><br>
+      <button onclick="addItem('Beer', 500)">Beer - $5</button><br>
+      <button onclick="addItem('Bottled Water', 100)">Bottled Water - $1</button><br>
     </div>
 
-    <h3>Current Order</h3>
+    <h3>Current Order (<span id="activeTabName">No Tab Selected</span>)</h3>
     <ul id="order"></ul>
     <h3>Total: $<span id="total">0.00</span></h3>
 
-    <label for="email">Customer Email (for receipt):</label>
+    <label for="email">Customer Email (optional):</label>
     <input type="email" id="email" placeholder="example@email.com" />
 
     <button onclick="chargeCustomer()">Charge Customer</button>
     <button onclick="cancelPayment()">Cancel Payment</button>
-    <button onclick="clearOrder()">Clear Order</button>
 
     <p id="message"></p>
   </div>
 
   <script>
-    const BASE_URL = "https://luxtrium-pos-stripe.onrender.com"; // ✅ update if your Render URL changes
-    let total = 0;
-    let order = [];
+    const BASE_URL = "https://luxtrium-pos-stripe.onrender.com";
+    let tabs = {};  // { tabName: { order: [], total: 0 } }
+    let currentTab = null;
     let currentPaymentIntent = null;
 
-    function addItem(name, price) {
-      order.push({ name, price });
-      total += price;
+    // Create a new tab
+    function newTab() {
+      const name = prompt("Enter tab name (e.g., John or Table 4):");
+      if (!name) return;
+      if (tabs[name]) return alert("That tab already exists!");
+      tabs[name] = { order: [], total: 0 };
+      updateTabSelect();
+      document.getElementById("tabSelect").value = name;
+      switchTab();
+    }
+
+    // Switch to selected tab
+    function switchTab() {
+      const selected = document.getElementById("tabSelect").value;
+      currentTab = selected || null;
       renderOrder();
     }
 
+    // Delete tab
+    function deleteTab() {
+      if (!currentTab) return alert("No tab selected.");
+      if (!confirm(`Delete tab "${currentTab}"?`)) return;
+      delete tabs[currentTab];
+      currentTab = null;
+      updateTabSelect();
+      renderOrder();
+    }
+
+    // Close (charge) tab
+    async function closeTab() {
+      if (!currentTab) return alert("Select a tab first.");
+      if (tabs[currentTab].total <= 0) return alert("Tab is empty.");
+
+      const confirmClose = confirm(`Charge ${currentTab}'s tab of $${(tabs[currentTab].total / 100).toFixed(2)}?`);
+      if (!confirmClose) return;
+
+      await chargeCustomer(true);
+    }
+
+    // Add drink to tab
+    function addItem(name, price) {
+      if (!currentTab) return alert("Please select or create a tab first.");
+      tabs[currentTab].order.push({ name, price });
+      tabs[currentTab].total += price;
+      renderOrder();
+    }
+
+    // Display order for current tab
     function renderOrder() {
       const orderList = document.getElementById("order");
       orderList.innerHTML = "";
-      order.forEach((item) => {
-        const li = document.createElement("li");
-        li.textContent = `${item.name} – $${(item.price / 100).toFixed(2)}`;
-        orderList.appendChild(li);
-      });
-      document.getElementById("total").textContent = (total / 100).toFixed(2);
-    }
+      const totalEl = document.getElementById("total");
+      const nameEl = document.getElementById("activeTabName");
 
-    async function chargeCustomer() {
-      if (total <= 0) return alert("Add at least one item first.");
-
-      let email = document.getElementById("email").value.trim();
-      if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
-        return alert("Please enter a valid email address.");
+      if (!currentTab || !tabs[currentTab]) {
+        nameEl.textContent = "No Tab Selected";
+        totalEl.textContent = "0.00";
+        return;
       }
 
+      nameEl.textContent = currentTab;
+      tabs[currentTab].order.forEach(item => {
+        const li = document.createElement("li");
+        li.textContent = `${item.name} - $${(item.price / 100).toFixed(2)}`;
+        orderList.appendChild(li);
+      });
+      totalEl.textContent = (tabs[currentTab].total / 100).toFixed(2);
+    }
+
+    function updateTabSelect() {
+      const select = document.getElementById("tabSelect");
+      select.innerHTML = '<option value="">-- Select or Create a Tab --</option>';
+      Object.keys(tabs).forEach(tab => {
+        const option = document.createElement("option");
+        option.value = tab;
+        option.textContent = tab;
+        select.appendChild(option);
+      });
+    }
+
+    // Charge customer
+    async function chargeCustomer(fromClose = false) {
+      if (!currentTab) return alert("No tab selected.");
+      const tab = tabs[currentTab];
+      if (tab.total <= 0) return alert("No items in tab.");
+
+      const email = document.getElementById("email").value.trim();
       document.getElementById("message").textContent = "Processing payment...";
 
       try {
-        // --- Step 1: Create Payment Intent
-        const response = await fetch(`${BASE_URL}/create-payment-intent`, {
+        const res = await fetch(`${BASE_URL}/create-payment-intent`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ amount: total, receipt_email: email })
+          body: JSON.stringify({ amount: tab.total, receipt_email: email })
         });
-
-        const text = await response.text();
-        if (!response.ok) throw new Error(text);
-        const data = JSON.parse(text);
-
+        const data = await res.json();
         if (data.error) throw new Error(data.error);
         currentPaymentIntent = data.payment_intent;
 
-        // --- Step 2: Process on reader
         const processRes = await fetch(`${BASE_URL}/process-on-reader`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ payment_intent: currentPaymentIntent })
         });
 
-        const processText = await processRes.text();
-        if (!processRes.ok) throw new Error(processText);
-        const result = JSON.parse(processText);
-
+        const result = await processRes.json();
         if (result.success) {
           document.getElementById("message").textContent = "✅ Payment successful!";
-          clearOrder();
+          delete tabs[currentTab];
+          currentTab = null;
+          updateTabSelect();
+          renderOrder();
         } else {
           document.getElementById("message").textContent = "❌ Payment failed.";
         }
       } catch (err) {
-        document.getElementById("message").textContent =
-          "Error: " + err.message;
-        console.error("Charge error:", err);
+        document.getElementById("message").textContent = "Error: " + err.message;
       }
     }
 
+    // Cancel current payment
     async function cancelPayment() {
       if (!currentPaymentIntent) return alert("No payment in progress.");
       try {
-        const response = await fetch(`${BASE_URL}/cancel-payment`, {
+        const res = await fetch(`${BASE_URL}/cancel-payment`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ payment_intent: currentPaymentIntent })
         });
-
-        const text = await response.text();
-        const result = JSON.parse(text);
+        const result = await res.json();
         if (result.success) {
           document.getElementById("message").textContent = "⚠️ Payment canceled.";
         }
       } catch (err) {
-        document.getElementById("message").textContent =
-          "Cancel error: " + err.message;
+        document.getElementById("message").textContent = "Cancel error: " + err.message;
       }
-    }
-
-    function clearOrder() {
-      order = [];
-      total = 0;
-      currentPaymentIntent = null;
-      renderOrder();
-      document.getElementById("email").value = "";
-      document.getElementById("message").textContent = "";
     }
   </script>
 </body>
