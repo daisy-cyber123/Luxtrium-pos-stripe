@@ -46,6 +46,10 @@
       border-radius: 8px;
       border: 1px solid #ccc;
     }
+    #message {
+      margin-top: 10px;
+      font-weight: bold;
+    }
   </style>
 </head>
 <body>
@@ -55,12 +59,12 @@
     <h2>Bar Menu</h2>
 
     <div id="items">
-      <button onclick="addItem('Red Carpet Cosmo', 1300)">Red Carpet Cosmo - $13</button><br>
-      <button onclick="addItem('Hollywood Royale', 1300)">Hollywood Royale - $13</button><br>
-      <button onclick="addItem('Whiskey Sour', 1300)">Whiskey Sour - $13</button><br>
-      <button onclick="addItem('Brown Derby', 1300)">Brown Derby - $13</button><br>
-      <button onclick="addItem('Beer', 500)">Beer - $5</button><br>
-      <button onclick="addItem('Bottled Water', 100)">Bottled Water - $1</button><br>
+      <button onclick="addItem('Red Carpet Cosmo', 1300)">Red Carpet Cosmo – $13</button><br>
+      <button onclick="addItem('Hollywood Royale', 1300)">Hollywood Royale – $13</button><br>
+      <button onclick="addItem('Whiskey Sour', 1300)">Whiskey Sour – $13</button><br>
+      <button onclick="addItem('Brown Derby', 1300)">Brown Derby – $13</button><br>
+      <button onclick="addItem('Beer', 500)">Beer – $5</button><br>
+      <button onclick="addItem('Bottled Water', 100)">Bottled Water – $1</button><br>
     </div>
 
     <h3>Current Order</h3>
@@ -78,6 +82,7 @@
   </div>
 
   <script>
+    const BASE_URL = "https://luxtrium-pos-stripe.onrender.com"; // ✅ update if your Render URL changes
     let total = 0;
     let order = [];
     let currentPaymentIntent = null;
@@ -93,63 +98,74 @@
       orderList.innerHTML = "";
       order.forEach((item) => {
         const li = document.createElement("li");
-        li.textContent = `${item.name} - $${(item.price / 100).toFixed(2)}`;
+        li.textContent = `${item.name} – $${(item.price / 100).toFixed(2)}`;
         orderList.appendChild(li);
       });
       document.getElementById("total").textContent = (total / 100).toFixed(2);
     }
 
     async function chargeCustomer() {
-      if (total <= 0) return alert("Add at least one item.");
+      if (total <= 0) return alert("Add at least one item first.");
 
-      const email = document.getElementById("email").value;
+      let email = document.getElementById("email").value.trim();
+      if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+        return alert("Please enter a valid email address.");
+      }
+
+      document.getElementById("message").textContent = "Processing payment...";
 
       try {
-        const response = await fetch("/create-payment-intent", {
+        // --- Step 1: Create Payment Intent
+        const response = await fetch(`${BASE_URL}/create-payment-intent`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ amount: total, receipt_email: email }),
+          body: JSON.stringify({ amount: total, receipt_email: email })
         });
-        const data = await response.json();
+
+        const text = await response.text();
+        if (!response.ok) throw new Error(text);
+        const data = JSON.parse(text);
 
         if (data.error) throw new Error(data.error);
-
         currentPaymentIntent = data.payment_intent;
 
-        const processResponse = await fetch("/process-on-reader", {
+        // --- Step 2: Process on reader
+        const processRes = await fetch(`${BASE_URL}/process-on-reader`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ payment_intent: currentPaymentIntent }),
+          body: JSON.stringify({ payment_intent: currentPaymentIntent })
         });
 
-        const result = await processResponse.json();
+        const processText = await processRes.text();
+        if (!processRes.ok) throw new Error(processText);
+        const result = JSON.parse(processText);
 
         if (result.success) {
-          document.getElementById("message").textContent =
-            "✅ Payment successful!";
+          document.getElementById("message").textContent = "✅ Payment successful!";
           clearOrder();
         } else {
-          document.getElementById("message").textContent =
-            "❌ Payment failed.";
+          document.getElementById("message").textContent = "❌ Payment failed.";
         }
       } catch (err) {
         document.getElementById("message").textContent =
           "Error: " + err.message;
+        console.error("Charge error:", err);
       }
     }
 
     async function cancelPayment() {
       if (!currentPaymentIntent) return alert("No payment in progress.");
       try {
-        const response = await fetch("/cancel-payment", {
+        const response = await fetch(`${BASE_URL}/cancel-payment`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ payment_intent: currentPaymentIntent }),
+          body: JSON.stringify({ payment_intent: currentPaymentIntent })
         });
-        const result = await response.json();
+
+        const text = await response.text();
+        const result = JSON.parse(text);
         if (result.success) {
-          document.getElementById("message").textContent =
-            "⚠️ Payment canceled.";
+          document.getElementById("message").textContent = "⚠️ Payment canceled.";
         }
       } catch (err) {
         document.getElementById("message").textContent =
