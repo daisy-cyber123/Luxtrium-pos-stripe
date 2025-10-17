@@ -33,26 +33,38 @@ app.use(bodyParser.json());
 app.use('/webhook', bodyParser.raw({ type: 'application/json' }));
 
 // --------------------
-// Routes
+// Root route
 // --------------------
-app.get('/', (_, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
-app.get('/pos', (_, res) => res.sendFile(path.join(__dirname, 'public', 'pos.html')));
+app.get('/', (_, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
 
 // --------------------
-// Create Payment Intent
+// POS route
+// --------------------
+app.get('/pos', (_, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'pos.html'));
+});
+
+// --------------------
+// Create Payment Intent (email optional)
 // --------------------
 app.post('/create-payment-intent', async (req, res) => {
   try {
     const { amount, currency = 'usd', receipt_email } = req.body;
-    if (!amount) return res.status(400).json({ error: 'Missing amount' });
 
+    if (!amount) {
+      return res.status(400).json({ error: 'Missing amount' });
+    }
+
+    // Create the payment intent with or without email
     const paymentIntent = await stripe.paymentIntents.create({
       amount,
       currency,
       payment_method_types: ['card_present'],
       capture_method: 'automatic',
       description: 'Luxtrium POS Sale',
-      receipt_email,
+      ...(receipt_email ? { receipt_email } : {}), // ✅ only include if provided
     });
 
     res.json({ payment_intent: paymentIntent.id });
@@ -71,7 +83,9 @@ app.post('/process-on-reader', async (req, res) => {
     if (!payment_intent)
       return res.status(400).json({ error: 'Missing payment_intent' });
 
-    await stripe.terminal.readers.processPaymentIntent(READER_ID, { payment_intent });
+    await stripe.terminal.readers.processPaymentIntent(READER_ID, {
+      payment_intent,
+    });
 
     // Poll until payment completes
     const poll = async () => {
@@ -96,10 +110,10 @@ app.post('/cancel-payment', async (req, res) => {
   try {
     const { payment_intent } = req.body;
 
-    // 1️⃣ Cancel on the reader
+    // Cancel on the reader
     await stripe.terminal.readers.cancelAction(READER_ID);
 
-    // 2️⃣ Cancel the PaymentIntent if one exists
+    // Cancel the PaymentIntent if one exists
     if (payment_intent) {
       await stripe.paymentIntents.cancel(payment_intent);
     }
@@ -119,7 +133,7 @@ app.post('/webhook', (req, res) => {
 });
 
 // --------------------
-// Start server
+// Start Server
 // --------------------
 app.listen(PORT, () =>
   console.log(`✅ Luxtrium POS server running on port ${PORT}`)
